@@ -12,13 +12,13 @@
 #include <cstdlib>
 
 
-static const int T_in=8;
+static const int T_in=7;
 static const int T_fi=9;
 static const int XnodeSites =16;
 static const int YnodeSites =16;
 static const int ZnodeSites =16;
 static const int TnodeSites =32/2;
-static const int binsize=1;
+static const int binsize=50;
 static const int Confsize=700;
 static const int Tshiftsize=1;
 //int tshift[Tshiftsize]={0,2,4,8,12,16,20,24,28};   //time shift

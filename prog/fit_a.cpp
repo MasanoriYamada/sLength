@@ -15,16 +15,16 @@
 
 using namespace std;
 
-std::string inPath = "/Users/SINYAMADA/lab/src/numerov/phase";
-std::string outPath = "../out";
-std::string physInfo = "RC16x32_B1830Kud013760Ks013710C17610";
-std::string inStaticsInfo = "kcotd";
-std::string outStaticsInfo = "sLength";
-const int dataSize = 250;
+std::string inPath = "/home/sinyamada/results/set1/Spin0-0Bin50/phase/bin";
+std::string physInfo = "RC16x32_B1830Kud013760Ks013710C1761";
+std::string inStaticsInfo = "1g1yy1D_kcotdy";
+std::string outStaticsInfo = "1g1yy1D_sLength";
+int dataSize;  //correspond to fiting range
+const int fileDatasize = 1500;
 bool inBinary = false;
 bool outBinary = false; 
 
-#define binKcotd(ixyz,iconf) binKcotd[ixyz + dataSize*iconf]
+
 
 main(){
 
@@ -34,17 +34,35 @@ main(){
   inKcotd.setWriteBinaryMode(outBinary);
   inKcotd.setConfSize(binnumber);
 
+  for (int E = 1 ; E <= 30 ;E++){
+    dataSize = E*100/2;
+    std::string outPath = "/home/sinyamada/results/set1/Spin0-0Bin50/sLength/MaxE";
+    ostringstream oss;
+    oss << E;
+    outPath = outPath + oss.str();
+    root_mkdir(outPath.c_str());
 
   for(int iT=T_in  ; iT< T_fi +1  ; iT++ ){
-    JACK jackKcotd(Confsize,binsize,dataSize);
-    double* freqK = new double[dataSize];
+    JACK jackKcotd;
+    jackKcotd.set(Confsize,binsize,dataSize);
+    double* fitInX = new double[dataSize];
+
     for (int iconf=0; iconf< binnumber; iconf++) {
-      double* binKcotd = new double[dataSize];
+      double* binKcotd = new double[fileDatasize];
+      double* freqK = new double[fileDatasize];
+
       inKcotd.callData(binKcotd,2,inPath,inStaticsInfo,physInfo,iconf,iT);
       inKcotd.callData(freqK,1,inPath,inStaticsInfo,physInfo,iconf,iT);
-      if(iconf == 0){      for(int id = 0;id<dataSize;id++){ cout<<iconf<<" "<<freqK[id]<<" "<<binKcotd[id]<<endl;}}
-      jackKcotd.setBinData(binKcotd,iconf);
+      double* fitInY = new double[dataSize];
+      for (int id = 0 ;id <dataSize; id++){
+	fitInX[id] = freqK[id];
+	fitInY[id] = binKcotd[id];
+      }
+      if(iconf == 0){      for(int id = 0;id<dataSize;id++){ cout<<iconf<<" "<<fitInX[id]<<" "<<fitInY[id]<<endl;}}
+      jackKcotd.setBinData(fitInY,iconf);
+      delete [] fitInY;
       delete [] binKcotd;
+      delete [] freqK;
     }
     
     double* err= new double[dataSize];
@@ -52,25 +70,31 @@ main(){
     err= jackKcotd.calcErr();
     ave= jackKcotd.calcAve();
         cout << "@Start Ave Err"<<endl;
-	for(int id = 0;id<dataSize;id++){cout<<freqK[id]<<" "<<ave[id]<<" "<<err[id]<<endl;}
+	//for(int id = 0;id<dataSize;id++){cout<<fitInX[id]<<" "<<ave[id]<<" "<<err[id]<<endl;}
     
     cout << "@Start fit"<<endl;
     for (int iconf=0; iconf< binnumber; iconf++) {
-      double* binKcotd = new double[dataSize];
+      double* binKcotd = new double[fileDatasize];
       inKcotd.callData(binKcotd,2,inPath,inStaticsInfo,physInfo,iconf,iT);
       double b1,b2,chisq;
-      fit(freqK,binKcotd,err,b1,b2,chisq);
-      double param[2]={b1,b2};
+      double* fitInY = new double[dataSize];
+      for (int id = 0 ;id <dataSize; id++){
+	fitInY[id] = binKcotd[id];
+      }
+      fit(fitInX,fitInY,err,b1,b2,chisq);
+      delete [] fitInY;
+      double param[3]={1/b1,b2,chisq};
       
-      cout<<b1<<" "<<b2<<" "<<chisq<<endl;
+      cout<<1/b1<<" "<<b2<<" "<<chisq<<endl;
       inKcotd.outData(param,outPath,outStaticsInfo,physInfo,iconf,iT,3);
 
       delete [] binKcotd;
       
     }//iconf
-      delete [] freqK; 
-    cout <<"@End all jobs"<<endl; 
+      delete [] fitInX; 
   }
+  }
+    cout <<"@End all jobs"<<endl; 
 
 }
 
@@ -81,9 +105,17 @@ main(){
     
     double b1=a[0];
     double b2=a[1];
-    yfit = 1.0/b1 + (1.0/2.0)*b2*x*x;
+    // for it = 7
+    
+    /*        yfit = 1.0/b1 + (1.0/2.0)*b2*x*x;
     
     dyda[0] = -1.0/(b1*b1);
+    dyda[1] = (1.0/2.0)*x*x;
+    */
+          // for it = 8
+        yfit = b1 + (1.0/2.0)*b2*x*x;
+    
+    dyda[0] = 1.0;
     dyda[1] = (1.0/2.0)*x*x;
     
   }
@@ -91,7 +123,7 @@ main(){
 
 void fit(double x[],double y[],double dy[], double& b1, double& b2,double& chisq)
   {	
-    int ndata = 250;
+    int ndata = dataSize;
     //			static double a[2];
     //			static int    is_initial = 1;
     //			int   ia[]={1,1}, ma =2;
@@ -105,11 +137,13 @@ void fit(double x[],double y[],double dy[], double& b1, double& b2,double& chisq
     double alambda;
 	
     if(is_initial==1){
-      is_initial=0;
-      
-      a[0] =-1.0/50.0;
-      a[1] = 0.1;
-      
+       is_initial=0;
+      //it 7      
+       // a[0] = -1.0/50.0;
+       //a[1] = 0.1;
+      //it 8,9
+        a[0] = 0.002;
+       a[1] = 0.006;
     }
     
     //
